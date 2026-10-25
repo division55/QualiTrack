@@ -1,0 +1,1177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>QualiTrack — Software Quality Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600;700&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+/* ── TOKENS ──────────────────────────────────────────────────────── */
+:root {
+  --bg:       #0D1B2A;
+  --surface:  #122336;
+  --surface2: #1A3047;
+  --border:   #1E3A52;
+  --border2:  #264760;
+  --cyan:     #00D4FF;
+  --green:    #39FF14;
+  --orange:   #FF6B35;
+  --red:      #FF3B5C;
+  --yellow:   #FFD166;
+  --text:     #E8F4FD;
+  --muted:    #6B8FA8;
+  --dim:      #3D6478;
+  --font-ui:  'Inter', system-ui, sans-serif;
+  --font-data:'JetBrains Mono', monospace;
+}
+
+/* ── RESET ───────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 15px; }
+body {
+  font-family: var(--font-ui);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  overflow-x: hidden;
+}
+
+/* ── SIDEBAR ─────────────────────────────────────────────────────── */
+.sidebar {
+  width: 220px; flex-shrink: 0;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  position: fixed; top: 0; left: 0; bottom: 0;
+  z-index: 10;
+}
+.sidebar-logo {
+  padding: 22px 20px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.logo-mark {
+  font-family: var(--font-data);
+  font-size: 18px; font-weight: 700;
+  color: var(--cyan);
+  letter-spacing: -0.5px;
+}
+.logo-sub {
+  font-size: 10px; color: var(--muted);
+  margin-top: 2px; letter-spacing: 0.3px;
+}
+.nav { flex: 1; padding: 16px 0; }
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 20px; cursor: pointer;
+  font-size: 13px; color: var(--muted);
+  border-left: 2px solid transparent;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  user-select: none;
+}
+.nav-item:hover { color: var(--text); background: var(--surface2); }
+.nav-item.active {
+  color: var(--cyan); border-left-color: var(--cyan);
+  background: rgba(0,212,255,0.06);
+}
+.nav-icon { font-size: 15px; width: 18px; text-align: center; flex-shrink: 0; }
+.sidebar-foot {
+  padding: 16px 20px;
+  border-top: 1px solid var(--border);
+  font-size: 11px; color: var(--dim);
+  line-height: 1.6;
+}
+
+/* ── MAIN ────────────────────────────────────────────────────────── */
+.main {
+  margin-left: 220px;
+  flex: 1; min-height: 100vh;
+  display: flex; flex-direction: column;
+}
+.topbar {
+  padding: 16px 32px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--surface);
+  position: sticky; top: 0; z-index: 5;
+}
+.topbar-title {
+  font-family: var(--font-data);
+  font-size: 13px; color: var(--muted);
+}
+.topbar-title span { color: var(--cyan); }
+.content { padding: 32px; flex: 1; }
+
+/* ── VIEWS ───────────────────────────────────────────────────────── */
+.view { display: none; }
+.view.active { display: block; }
+
+/* ── INPUT ROW ───────────────────────────────────────────────────── */
+.input-row {
+  display: flex; gap: 10px; margin-bottom: 28px;
+  flex-wrap: wrap;
+}
+.repo-input {
+  flex: 1; min-width: 280px;
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  color: var(--text);
+  font-family: var(--font-data);
+  font-size: 13px;
+  padding: 11px 16px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.repo-input::placeholder { color: var(--dim); }
+.repo-input:focus { border-color: var(--cyan); }
+.btn {
+  padding: 11px 22px;
+  background: var(--cyan);
+  color: var(--bg);
+  border: none; cursor: pointer;
+  font-family: var(--font-data);
+  font-size: 13px; font-weight: 600;
+  transition: opacity 0.15s;
+}
+.btn:hover { opacity: 0.85; }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-outline {
+  background: transparent;
+  border: 1px solid var(--border2);
+  color: var(--muted);
+}
+.btn-outline:hover { border-color: var(--cyan); color: var(--cyan); background: transparent; }
+
+/* ── SECTION HEADING ─────────────────────────────────────────────── */
+.sec-head {
+  font-family: var(--font-data);
+  font-size: 11px; font-weight: 600;
+  color: var(--muted);
+  letter-spacing: 1px;
+  margin-bottom: 18px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* ── GAUGE ───────────────────────────────────────────────────────── */
+.scorecard {
+  display: flex; align-items: center; gap: 40px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 28px 32px;
+  margin-bottom: 24px;
+}
+.gauge-wrap { position: relative; flex-shrink: 0; }
+canvas#gauge { display: block; }
+.gauge-text {
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+}
+.gauge-num {
+  font-family: var(--font-data);
+  font-size: 38px; font-weight: 700;
+  line-height: 1;
+}
+.gauge-denom { font-size: 14px; color: var(--muted); }
+.gauge-label { font-size: 11px; color: var(--muted); margin-top: 4px; }
+.score-meta { flex: 1; }
+.score-meta-name {
+  font-family: var(--font-data);
+  font-size: 18px; font-weight: 600;
+  color: var(--text); margin-bottom: 4px;
+}
+.score-meta-url { font-size: 12px; color: var(--muted); margin-bottom: 16px; }
+.score-pills { display: flex; gap: 10px; flex-wrap: wrap; }
+.pill {
+  padding: 5px 13px;
+  border: 1px solid var(--border2);
+  font-family: var(--font-data);
+  font-size: 11px; color: var(--muted);
+}
+.pill span { color: var(--text); font-weight: 600; }
+
+/* ── METRIC GRID ─────────────────────────────────────────────────── */
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 14px; margin-bottom: 24px;
+}
+.metric-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 18px 20px;
+}
+.metric-label { font-size: 11px; color: var(--muted); margin-bottom: 8px; }
+.metric-val {
+  font-family: var(--font-data);
+  font-size: 26px; font-weight: 700;
+}
+.metric-val.good { color: var(--green); }
+.metric-val.warn { color: var(--yellow); }
+.metric-val.bad  { color: var(--orange); }
+.metric-val.neutral { color: var(--cyan); }
+.metric-sub { font-size: 11px; color: var(--dim); margin-top: 4px; }
+
+/* ── DIMENSION BARS ──────────────────────────────────────────────── */
+.dim-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 24px; }
+.dim-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 18px 20px;
+}
+.dim-top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+.dim-name { font-size: 13px; font-weight: 500; }
+.dim-score {
+  font-family: var(--font-data);
+  font-size: 18px; font-weight: 700;
+}
+.dim-track {
+  height: 6px; background: var(--surface2);
+  position: relative; overflow: hidden;
+}
+.dim-fill { height: 100%; transition: width 0.8s ease; }
+.dim-sub { font-size: 11px; color: var(--dim); margin-top: 8px; }
+
+/* ── RECOMMENDATIONS ─────────────────────────────────────────────── */
+.rec-list { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
+.rec-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+  padding: 16px 18px;
+  display: flex; gap: 14px; align-items: flex-start;
+}
+.rec-item.high   { border-left-color: var(--orange); }
+.rec-item.medium { border-left-color: var(--yellow); }
+.rec-item.low    { border-left-color: var(--green); }
+.rec-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+.rec-body {}
+.rec-title { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+.rec-desc { font-size: 12px; color: var(--muted); line-height: 1.6; }
+.rec-trigger {
+  margin-top: 8px;
+  font-family: var(--font-data);
+  font-size: 11px; color: var(--dim);
+  background: var(--surface2);
+  padding: 4px 10px; display: inline-block;
+}
+
+/* ── COMPARE VIEW ────────────────────────────────────────────────── */
+.compare-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 10px; }
+.compare-col-label {
+  font-family: var(--font-data);
+  font-size: 11px; color: var(--muted); margin-bottom: 6px;
+}
+.compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 24px; }
+.compare-score-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 24px; text-align: center;
+}
+.compare-score-card.winner { border-color: var(--cyan); }
+.compare-repo { font-family: var(--font-data); font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+.compare-num {
+  font-family: var(--font-data);
+  font-size: 48px; font-weight: 700; line-height: 1;
+  color: var(--green);
+}
+.compare-num.loser { color: var(--orange); }
+.compare-badge {
+  display: inline-block; margin-top: 10px;
+  padding: 3px 12px; font-size: 11px;
+  border: 1px solid var(--border2); color: var(--muted);
+  font-family: var(--font-data);
+}
+.compare-badge.win { border-color: var(--cyan); color: var(--cyan); }
+.chart-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 22px 24px; margin-bottom: 24px;
+}
+.chart-wrap { position: relative; height: 280px; }
+
+/* ── COMPARE TABLE ───────────────────────────────────────────────── */
+.cmp-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.cmp-table th {
+  text-align: left; padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px; color: var(--muted);
+  font-weight: 500; letter-spacing: 0.5px;
+  font-family: var(--font-data);
+}
+.cmp-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-data); font-size: 12px;
+}
+.cmp-table tr:last-child td { border-bottom: none; }
+.cmp-win { color: var(--green); font-weight: 600; }
+.cmp-lose { color: var(--muted); }
+
+/* ── REPORT VIEW ─────────────────────────────────────────────────── */
+.report-meta {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 22px 24px; margin-bottom: 24px;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+}
+.report-field label {
+  display: block; font-size: 11px; color: var(--muted); margin-bottom: 6px;
+}
+.report-field input, .report-field textarea {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  padding: 9px 12px;
+  outline: none;
+}
+.report-field input:focus, .report-field textarea:focus { border-color: var(--cyan); }
+.report-field textarea { resize: vertical; min-height: 80px; }
+.report-field.full { grid-column: 1 / -1; }
+
+/* ── ABOUT VIEW ──────────────────────────────────────────────────── */
+.about-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.about-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 22px 24px;
+}
+.about-card h3 {
+  font-family: var(--font-data);
+  font-size: 14px; color: var(--cyan);
+  margin-bottom: 14px;
+}
+.about-card p, .about-card li {
+  font-size: 13px; color: var(--muted);
+  line-height: 1.7;
+}
+.about-card ul { padding-left: 16px; }
+.about-card li { margin-bottom: 6px; }
+.rubric-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 10px; }
+.rubric-table th {
+  text-align: left; padding: 8px 12px;
+  background: var(--surface2);
+  color: var(--muted); font-size: 11px;
+  font-family: var(--font-data);
+}
+.rubric-table td { padding: 8px 12px; border-top: 1px solid var(--border); color: var(--muted); }
+.rubric-table td:first-child { color: var(--text); font-family: var(--font-data); }
+
+/* ── LOADING / EMPTY ─────────────────────────────────────────────── */
+.placeholder {
+  text-align: center; padding: 60px 20px;
+  color: var(--dim);
+}
+.placeholder-icon { font-size: 36px; margin-bottom: 12px; }
+.placeholder p { font-size: 13px; line-height: 1.7; max-width: 400px; margin: 0 auto; }
+.spinner {
+  display: inline-block;
+  width: 18px; height: 18px;
+  border: 2px solid var(--border2);
+  border-top-color: var(--cyan);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  vertical-align: middle; margin-right: 8px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.status-bar {
+  font-family: var(--font-data);
+  font-size: 12px; color: var(--muted);
+  padding: 10px 0; margin-bottom: 20px;
+}
+.status-bar.error { color: var(--orange); }
+
+/* ── PRINT ───────────────────────────────────────────────────────── */
+@media print {
+  .sidebar, .topbar, .input-row, .btn, .no-print { display: none !important; }
+  .main { margin-left: 0; }
+  .content { padding: 20px; }
+  body { background: white; color: black; }
+  .metric-card, .dim-card, .rec-item, .scorecard, .chart-card {
+    border: 1px solid #ccc; background: white;
+    break-inside: avoid;
+  }
+  .metric-val, .gauge-num, .compare-num, .dim-score { color: #000 !important; }
+  .metric-label, .dim-name, .muted, .rec-desc, .dim-sub { color: #666 !important; }
+}
+
+@media (max-width: 768px) {
+  .sidebar { display: none; }
+  .main { margin-left: 0; }
+  .dim-grid, .compare-grid, .compare-inputs, .about-grid { grid-template-columns: 1fr; }
+  .scorecard { flex-direction: column; }
+  .content { padding: 20px 16px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ── SIDEBAR ────────────────────────────────────────────────────── -->
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-mark">QualiTrack</div>
+    <div class="logo-sub">Software Quality Dashboard</div>
+  </div>
+  <div class="nav">
+    <div class="nav-item active" data-view="scorecard-view">
+      <span class="nav-icon">◎</span> Scorecard
+    </div>
+    <div class="nav-item" data-view="compare-view">
+      <span class="nav-icon">⇄</span> Compare
+    </div>
+    <div class="nav-item" data-view="report-view">
+      <span class="nav-icon">↓</span> Export Report
+    </div>
+    <div class="nav-item" data-view="about-view">
+      <span class="nav-icon">≡</span> Methodology
+    </div>
+  </div>
+  <div class="sidebar-foot">
+    BCSE301L · DA2<br>
+    Divya Umai Raja<br>
+    24BDS1068
+  </div>
+</nav>
+
+<!-- ── MAIN ──────────────────────────────────────────────────────── -->
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-title">QualiTrack / <span id="topbar-view">Scorecard</span></div>
+    <div style="display:flex;gap:10px;align-items:center;">
+      <span style="font-size:11px;color:var(--muted);font-family:var(--font-data);">ISO/IEC 25010 aligned</span>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- ══ SCORECARD VIEW ══════════════════════════════════════════ -->
+    <div class="view active" id="scorecard-view">
+      <div class="sec-head">Repository Analysis</div>
+      <div class="input-row">
+        <input class="repo-input" id="repo-input" type="text"
+          placeholder="github.com/owner/repo  or  owner/repo" />
+        <button class="btn" id="analyze-btn" onclick="analyzeRepo()">Analyze</button>
+      </div>
+      <div id="status-msg" class="status-bar" style="display:none;"></div>
+
+      <div id="results-area">
+        <div class="placeholder">
+          <div class="placeholder-icon">◎</div>
+          <p>Enter a GitHub repository URL above to generate a quality scorecard. The dashboard fetches live data from the GitHub API and calculates scores across four dimensions.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ COMPARE VIEW ════════════════════════════════════════════ -->
+    <div class="view" id="compare-view">
+      <div class="sec-head">Project Comparison</div>
+      <div class="compare-inputs">
+        <div>
+          <div class="compare-col-label">Project A</div>
+          <input class="repo-input" id="cmp-a" type="text" placeholder="owner/repo" />
+        </div>
+        <div>
+          <div class="compare-col-label">Project B</div>
+          <input class="repo-input" id="cmp-b" type="text" placeholder="owner/repo" />
+        </div>
+      </div>
+      <div class="input-row" style="margin-bottom:28px;">
+        <button class="btn" onclick="compareRepos()">Compare Projects</button>
+      </div>
+      <div id="cmp-status" class="status-bar" style="display:none;"></div>
+      <div id="compare-results">
+        <div class="placeholder">
+          <div class="placeholder-icon">⇄</div>
+          <p>Enter two GitHub repositories to compare them side by side across all quality dimensions.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ REPORT VIEW ═════════════════════════════════════════════ -->
+    <div class="view" id="report-view">
+      <div class="sec-head">Export Report</div>
+      <div id="report-content">
+        <div class="placeholder">
+          <div class="placeholder-icon">↓</div>
+          <p>Run a Scorecard analysis first, then return here to generate and download your full report.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ ABOUT VIEW ══════════════════════════════════════════════ -->
+    <div class="view" id="about-view">
+      <div class="sec-head">Methodology & Rubric</div>
+      <div class="about-grid">
+        <div class="about-card" style="grid-column:1/-1;">
+          <h3>What QualiTrack measures</h3>
+          <p>QualiTrack retrieves observable metrics from the GitHub public API and maps them to four quality dimensions defined in ISO/IEC 25010: Maintainability, Reliability, Community Health, and Documentation & Standards. Each dimension contributes a weighted sub-score to a final score out of 100.</p>
+          <p style="margin-top:10px;color:var(--dim);font-size:12px;">Note: This is an educational assessment tool. Metrics like test coverage and static analysis results are not available through the public API and are excluded. Where excluded, limitations are flagged in the output.</p>
+        </div>
+        <div class="about-card">
+          <h3>Scoring Rubric</h3>
+          <table class="rubric-table">
+            <tr><th>Dimension</th><th>Weight</th><th>Signals</th></tr>
+            <tr><td>Maintainability</td><td>30</td><td>Commit cadence, recency, release count</td></tr>
+            <tr><td>Reliability</td><td>25</td><td>Issue resolution ratio, open/closed</td></tr>
+            <tr><td>Community Health</td><td>25</td><td>Stars, forks, contributor proxy</td></tr>
+            <tr><td>Documentation</td><td>20</td><td>License, wiki, description, topics</td></tr>
+          </table>
+        </div>
+        <div class="about-card">
+          <h3>SE Concepts Demonstrated</h3>
+          <ul>
+            <li><strong>Requirements Engineering</strong> — functional and non-functional requirements defined before build</li>
+            <li><strong>Software Design</strong> — modular architecture: API layer, scoring engine, UI layer</li>
+            <li><strong>SQA</strong> — ISO 25010 quality model, custom weighted rubric</li>
+            <li><strong>Testing</strong> — input validation, API error handling, edge cases</li>
+            <li><strong>Maintenance</strong> — recommendations engine flags weaknesses</li>
+            <li><strong>Process Improvement</strong> — every recommendation is tied to a specific triggering metric</li>
+          </ul>
+        </div>
+        <div class="about-card">
+          <h3>Data Sources & Limitations</h3>
+          <ul>
+            <li>GitHub REST API v3 (public, no auth for basic endpoints)</li>
+            <li>Rate limit: 60 requests/hour unauthenticated</li>
+            <li>Test coverage % — not available via API; requires Codecov/CI integration</li>
+            <li>Static analysis (cyclomatic complexity, code smells) — not available; requires local tooling</li>
+            <li>Security vulnerability count — not exposed in public API</li>
+          </ul>
+        </div>
+        <div class="about-card" style="grid-column:1/-1;">
+          <h3>Recommendations Engine Logic</h3>
+          <table class="rubric-table">
+            <tr><th>Trigger Condition</th><th>Priority</th><th>Recommendation</th></tr>
+            <tr><td>Last commit &gt; 90 days ago</td><td>High</td><td>Project may be abandoned — evaluate maintenance status</td></tr>
+            <tr><td>Open issues &gt; 500</td><td>High</td><td>High defect backlog — prioritise issue triage and resolution</td></tr>
+            <tr><td>Issue resolution rate &lt; 50%</td><td>High</td><td>More than half of issues remain open — review maintenance process</td></tr>
+            <tr><td>No license detected</td><td>Medium</td><td>Add a license — required for legal open-source use</td></tr>
+            <tr><td>No description set</td><td>Medium</td><td>Add a repository description for discoverability</td></tr>
+            <tr><td>Stars &lt; 50 and forks &lt; 10</td><td>Low</td><td>Low community adoption — consider improving documentation and outreach</td></tr>
+            <tr><td>Commit cadence &lt; 2/month</td><td>Medium</td><td>Infrequent commits — consider more regular development increments</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+
+<script>
+// ── STATE ──────────────────────────────────────────────────────────
+let lastResult = null;
+let cmpResults = [null, null];
+let gaugeChart = null;
+let barChartInst = null;
+let cmpBarInst = null;
+
+// ── NAV ────────────────────────────────────────────────────────────
+document.querySelectorAll('.nav-item').forEach(item => {
+  item.addEventListener('click', () => {
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    item.classList.add('active');
+    const vid = item.dataset.view;
+    document.getElementById(vid).classList.add('active');
+    document.getElementById('topbar-view').textContent = item.textContent.trim();
+    if (vid === 'report-view') buildReportView();
+  });
+});
+
+// ── GITHUB API ─────────────────────────────────────────────────────
+function parseRepo(input) {
+  input = input.trim().replace(/^https?:\/\//, '').replace(/^github\.com\//, '');
+  input = input.replace(/\/$/, '');
+  const parts = input.split('/');
+  if (parts.length < 2) return null;
+  return parts[0] + '/' + parts[1];
+}
+
+async function fetchRepo(slug) {
+  const r = await fetch(`https://api.github.com/repos/${slug}`);
+  if (!r.ok) throw new Error(r.status === 404 ? 'Repository not found.' : `GitHub API error ${r.status}`);
+  return r.json();
+}
+
+async function fetchCommits(slug) {
+  try {
+    const r = await fetch(`https://api.github.com/repos/${slug}/commits?per_page=100`);
+    if (!r.ok) return [];
+    return r.json();
+  } catch { return []; }
+}
+
+async function fetchReleases(slug) {
+  try {
+    const r = await fetch(
+      `https://api.github.com/repos/${slug}/releases?per_page=100`
+    );
+
+    if (!r.ok) return [];
+
+    return await r.json();
+  } catch (error) {
+    console.error("Could not fetch releases:", error);
+    return [];
+  }
+}
+
+// ── SCORE ENGINE ───────────────────────────────────────────────────
+function daysSince(dateStr) {
+  return (Date.now() - new Date(dateStr).getTime()) / 86400000;
+}
+
+function calcScore(repo, commits, releases) {
+  const dims = {};
+
+  // — MAINTAINABILITY (30) ——————————————————————————
+  let maint = 0;
+  const days = daysSince(repo.pushed_at);
+  if      (days < 7)   maint += 15;
+  else if (days < 30)  maint += 12;
+  else if (days < 90)  maint += 8;
+  else if (days < 180) maint += 4;
+  else                 maint += 0;
+
+  // commit cadence: commits in last 100 fetched
+  const recentCommits = commits.filter(c => daysSince(c.commit.author.date) < 90).length;
+  if      (recentCommits > 60) maint += 10;
+  else if (recentCommits > 30) maint += 8;
+  else if (recentCommits > 10) maint += 5;
+  else if (recentCommits > 3)  maint += 3;
+  else                         maint += 1;
+
+  // releases
+  if      (releases.length > 10) maint += 5;
+  else if (releases.length > 3)  maint += 3;
+  else if (releases.length > 0)  maint += 1;
+
+  dims.maintainability = { score: Math.min(maint, 30), max: 30,
+    label: 'Maintainability', color: '#00D4FF',
+    sub: `${Math.round(days)}d since last push · ${recentCommits} commits/90d · ${releases.length} releases` };
+
+  // — RELIABILITY (25) ——————————————————————————————
+  let rel = 0;
+  const total = repo.open_issues_count;
+  // We estimate closed from forks/stars ratio as proxy — we only have open from API
+  // Use open count directly
+  if      (total === 0)    rel += 20;
+  else if (total < 20)     rel += 17;
+  else if (total < 100)    rel += 13;
+  else if (total < 300)    rel += 9;
+  else if (total < 1000)   rel += 5;
+  else                     rel += 2;
+
+  // has issues enabled (good sign), has wiki
+  if (repo.has_issues) rel += 3;
+  if (repo.has_wiki)   rel += 2;
+
+  dims.reliability = {
+    score: Math.min(rel, 25),
+    max: 25,
+    label: 'Issue Management Signals',
+    color: '#39FF14',
+    sub: `${total} open issues · issue tracking: ${repo.has_issues ? 'enabled' : 'disabled'}`
+};
+
+  // — COMMUNITY HEALTH (25) —————————————————————————
+  let com = 0;
+  const stars = repo.stargazers_count;
+  const forks = repo.forks_count;
+  const watchers = repo.watchers_count;
+
+  if      (stars > 10000) com += 10;
+  else if (stars > 1000)  com += 8;
+  else if (stars > 100)   com += 6;
+  else if (stars > 10)    com += 4;
+  else                    com += 1;
+
+  if      (forks > 2000) com += 8;
+  else if (forks > 200)  com += 6;
+  else if (forks > 50)   com += 4;
+  else if (forks > 5)    com += 2;
+  else                   com += 0;
+
+  if      (watchers > 500)  com += 7;
+  else if (watchers > 100)  com += 5;
+  else if (watchers > 20)   com += 3;
+  else                      com += 1;
+
+  dims.community = { score: Math.min(com, 25), max: 25,
+    label: 'Community Health', color: '#FFD166',
+    sub: `${stars.toLocaleString()} stars · ${forks.toLocaleString()} forks · ${watchers.toLocaleString()} watchers` };
+
+  // — DOCUMENTATION (20) ————————————————————————————
+  let doc = 0;
+  if (repo.license)      doc += 6;
+  if (repo.description)  doc += 5;
+  if (repo.homepage)     doc += 3;
+  if (repo.has_wiki)     doc += 3;
+  if (repo.topics && repo.topics.length > 0) doc += 3;
+
+  dims.documentation = { score: Math.min(doc, 20), max: 20,
+    label: 'Documentation', color: '#FF6B35',
+    sub: `license: ${repo.license ? repo.license.spdx_id : 'none'} · ${repo.topics?.length || 0} topics` };
+
+  const total_score = Object.values(dims).reduce((s, d) => s + d.score, 0);
+  return { total: total_score, dims, repo, commits, releases };
+}
+
+// ── RECOMMENDATIONS ────────────────────────────────────────────────
+function genRecommendations(data) {
+  const { repo, commits, dims } = data;
+  const recs = [];
+  const days = daysSince(repo.pushed_at);
+  const recentCommits = commits.filter(c => daysSince(c.commit.author.date) < 90).length;
+  const openIssues = repo.open_issues_count;
+
+  if (days > 90)
+    recs.push({ priority: 'high', icon: '⚠', title: 'Project activity is low',
+      desc: 'The last commit was over 90 days ago. Evaluate whether the project is being actively maintained. If it is, establish a regular commit cadence to signal health to contributors.',
+      trigger: `metric: last_push = ${Math.round(days)} days ago` });
+
+  if (openIssues > 500)
+    recs.push({ priority: 'high', icon: '⚠', title: 'High issue backlog detected',
+      desc: 'Over 500 open issues suggests defects and feature requests are accumulating faster than they are resolved. Introduce issue triage sessions and milestone-based resolution targets.',
+      trigger: `metric: open_issues = ${openIssues}` });
+
+  if (openIssues > 100 && openIssues <= 500)
+    recs.push({ priority: 'medium', icon: '○', title: 'Issue backlog is growing',
+      desc: 'A backlog of over 100 issues can slow contributor onboarding. Label issues by severity and assign resolution milestones to improve maintenance process visibility.',
+      trigger: `metric: open_issues = ${openIssues}` });
+
+  if (!repo.license)
+    recs.push({ priority: 'medium', icon: '○', title: 'No license detected',
+      desc: 'Without a licence, the repository cannot legally be used, modified or distributed by others. Add an appropriate open-source licence (MIT, Apache 2.0, GPL) to the root of the repository.',
+      trigger: `metric: license = null` });
+
+  if (!repo.description)
+    recs.push({ priority: 'medium', icon: '○', title: 'Repository has no description',
+      desc: 'A clear description improves discoverability and helps new contributors understand the project purpose immediately. Add a one-line summary in the repository settings.',
+      trigger: `metric: description = null` });
+
+  if (recentCommits < 4 && days < 180)
+    recs.push({ priority: 'medium', icon: '○', title: 'Commit frequency is low',
+      desc: 'Fewer than 4 commits in the last 90 days indicates low development cadence. Smaller, more frequent commits improve traceability and make code reviews more manageable.',
+      trigger: `metric: commits_90d = ${recentCommits}` });
+
+  if (!repo.has_wiki)
+    recs.push({ priority: 'low', icon: '◇', title: 'No wiki enabled',
+      desc: 'Enabling the GitHub wiki provides a space for user guides, architecture documentation and contribution guidelines — reducing onboarding time for new contributors.',
+      trigger: `metric: has_wiki = false` });
+
+  if (repo.stargazers_count < 50 && repo.forks_count < 10)
+    recs.push({ priority: 'low', icon: '◇', title: 'Low community adoption',
+      desc: 'The project has limited external visibility. Improve the README with usage examples, add topics/tags, and consider submitting to relevant package registries or community forums.',
+      trigger: `metric: stars = ${repo.stargazers_count}, forks = ${repo.forks_count}` });
+
+  if (!repo.homepage)
+    recs.push({ priority: 'low', icon: '◇', title: 'No project homepage set',
+      desc: 'Adding a homepage URL (docs site, demo, or landing page) improves professionalism and gives users a place to learn more outside of GitHub.',
+      trigger: `metric: homepage = null` });
+
+  if (recs.length === 0)
+    recs.push({ priority: 'low', icon: '✓', title: 'No major quality issues detected',
+      desc: 'This repository scores well across all measured dimensions. Continue maintaining regular commit cadence, responding to issues promptly, and keeping documentation up to date.',
+      trigger: `total_score = ${data.total}/100` });
+
+  return recs;
+}
+
+// ── SCORE COLOR ────────────────────────────────────────────────────
+function scoreColor(s) {
+  if (s >= 75) return '#39FF14';
+  if (s >= 50) return '#FFD166';
+  if (s >= 30) return '#FF6B35';
+  return '#FF3B5C';
+}
+function scoreGrade(s) {
+  if (s >= 85) return 'Excellent';
+  if (s >= 70) return 'Good';
+  if (s >= 55) return 'Moderate';
+  if (s >= 40) return 'Poor';
+  return 'Critical';
+}
+
+// ── RENDER RESULTS ─────────────────────────────────────────────────
+function renderResults(data) {
+  const { total, dims, repo, releases } = data;
+  const recs = genRecommendations(data);
+  const col = scoreColor(total);
+  const days = Math.round(daysSince(repo.pushed_at));
+
+  let html = `
+  <div class="scorecard">
+    <div class="gauge-wrap">
+      <canvas id="gauge" width="160" height="160"></canvas>
+      <div class="gauge-text">
+        <div class="gauge-num" style="color:${col}">${total}</div>
+        <div class="gauge-denom">/100</div>
+        <div class="gauge-label">${scoreGrade(total)}</div>
+      </div>
+    </div>
+    <div class="score-meta">
+      <div class="score-meta-name">${repo.full_name}</div>
+      <div class="score-meta-url">${repo.html_url}</div>
+      <div class="score-pills">
+        <div class="pill">Language <span>${repo.language || 'N/A'}</span></div>
+        <div class="pill">Stars <span>${repo.stargazers_count.toLocaleString()}</span></div>
+        <div class="pill">Forks <span>${repo.forks_count.toLocaleString()}</span></div>
+        <div class="pill">Last push <span>${days}d ago</span></div>
+        <div class="pill">License <span>${repo.license ? repo.license.spdx_id : 'None'}</span></div>
+        <div class="pill">Releases <span>${releases.length}</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec-head">Quality Dimensions</div>
+  <div class="dim-grid">`;
+
+  for (const d of Object.values(dims)) {
+    const pct = (d.score / d.max * 100).toFixed(0);
+    html += `
+    <div class="dim-card">
+      <div class="dim-top">
+        <span class="dim-name">${d.label}</span>
+        <span class="dim-score" style="color:${d.color}">${d.score}<span style="font-size:13px;color:var(--muted)">/${d.max}</span></span>
+      </div>
+      <div class="dim-track">
+        <div class="dim-fill" style="width:${pct}%;background:${d.color}"></div>
+      </div>
+      <div class="dim-sub">${d.sub}</div>
+    </div>`;
+  }
+
+  html += `</div>
+
+  <div class="sec-head">Key Metrics</div>
+  <div class="metric-grid">
+    <div class="metric-card">
+      <div class="metric-label">Open Issues</div>
+      <div class="metric-val ${repo.open_issues_count > 300 ? 'bad' : repo.open_issues_count > 50 ? 'warn' : 'good'}">${repo.open_issues_count.toLocaleString()}</div>
+      <div class="metric-sub">Lower is better</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Days Since Last Push</div>
+      <div class="metric-val ${days > 90 ? 'bad' : days > 30 ? 'warn' : 'good'}">${days}</div>
+      <div class="metric-sub">${new Date(repo.pushed_at).toDateString()}</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Stargazers</div>
+      <div class="metric-val neutral">${repo.stargazers_count.toLocaleString()}</div>
+      <div class="metric-sub">Community interest proxy</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Forks</div>
+      <div class="metric-val neutral">${repo.forks_count.toLocaleString()}</div>
+      <div class="metric-sub">Contributor entry point</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Test Coverage</div>
+      <div class="metric-val" style="color:var(--dim);font-size:18px;">N/A</div>
+      <div class="metric-sub">Not available via GitHub API</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">License</div>
+      <div class="metric-val ${repo.license ? 'good' : 'bad'}" style="font-size:18px;">${repo.license ? repo.license.spdx_id : 'None'}</div>
+      <div class="metric-sub">${repo.license ? 'Present' : 'Missing — add one'}</div>
+    </div>
+  </div>
+
+  <div class="sec-head">Quality Recommendations (${recs.length})</div>
+  <div class="rec-list">`;
+
+  for (const r of recs) {
+    html += `
+    <div class="rec-item ${r.priority}">
+      <div class="rec-icon">${r.icon}</div>
+      <div class="rec-body">
+        <div class="rec-title">${r.title}</div>
+        <div class="rec-desc">${r.desc}</div>
+        <div class="rec-trigger">${r.trigger}</div>
+      </div>
+    </div>`;
+  }
+
+  html += `</div>`;
+  document.getElementById('results-area').innerHTML = html;
+
+  // draw gauge
+  const ctx = document.getElementById('gauge').getContext('2d');
+  if (gaugeChart) gaugeChart.destroy();
+  gaugeChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      datasets: [{
+        data: [total, 100 - total],
+        backgroundColor: [col, '#1A3047'],
+        borderWidth: 0,
+        circumference: 270,
+        rotation: 225,
+      }]
+    },
+    options: {
+      cutout: '78%',
+      plugins: { legend: { display: false }, tooltip: { enabled: false } },
+      animation: { duration: 800 }
+    }
+  });
+}
+
+// ── ANALYZE ────────────────────────────────────────────────────────
+async function analyzeRepo() {
+  const raw = document.getElementById('repo-input').value;
+  const slug = parseRepo(raw);
+  const btn = document.getElementById('analyze-btn');
+  const status = document.getElementById('status-msg');
+
+  if (!slug) {
+    status.style.display = 'block';
+    status.className = 'status-bar error';
+    status.textContent = 'Enter a valid GitHub repository (e.g. owner/repo or github.com/owner/repo)';
+    return;
+  }
+
+  btn.disabled = true;
+  status.style.display = 'block';
+  status.className = 'status-bar';
+  status.innerHTML = '<span class="spinner"></span>Fetching repository data…';
+  document.getElementById('results-area').innerHTML = '';
+
+  try {
+    status.innerHTML = '<span class="spinner"></span>Loading repository info…';
+    const repo = await fetchRepo(slug);
+    status.innerHTML = '<span class="spinner"></span>Loading commits…';
+    const commits = await fetchCommits(slug);
+    status.innerHTML = '<span class="spinner"></span>Loading releases…';
+    const releases = await fetchReleases(slug);
+
+    const data = calcScore(repo, commits, releases);
+    lastResult = data;
+    status.style.display = 'none';
+    renderResults(data);
+  } catch (e) {
+    status.className = 'status-bar error';
+    status.textContent = 'Error: ' + e.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+document.getElementById('repo-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') analyzeRepo();
+});
+
+// ── COMPARE ────────────────────────────────────────────────────────
+async function compareRepos() {
+  const a = parseRepo(document.getElementById('cmp-a').value);
+  const b = parseRepo(document.getElementById('cmp-b').value);
+  const status = document.getElementById('cmp-status');
+
+  if (!a || !b) {
+    status.style.display = 'block';
+    status.className = 'status-bar error';
+    status.textContent = 'Enter two valid GitHub repositories to compare.';
+    return;
+  }
+
+  status.style.display = 'block';
+  status.className = 'status-bar';
+  status.innerHTML = '<span class="spinner"></span>Fetching both repositories…';
+  document.getElementById('compare-results').innerHTML = '';
+
+  try {
+    const [repoA, repoB] = await Promise.all([fetchRepo(a), fetchRepo(b)]);
+    status.innerHTML = '<span class="spinner"></span>Loading commits and releases…';
+    const [cA, cB, rA, rB] = await Promise.all([
+      fetchCommits(a), fetchCommits(b), fetchReleases(a), fetchReleases(b)
+    ]);
+    const dA = calcScore(repoA, cA, rA);
+    const dB = calcScore(repoB, cB, rB);
+    cmpResults = [dA, dB];
+    status.style.display = 'none';
+    renderCompare(dA, dB);
+  } catch (e) {
+    status.className = 'status-bar error';
+    status.textContent = 'Error: ' + e.message;
+  }
+}
+
+function renderCompare(dA, dB) {
+  const winsA = dA.total >= dB.total;
+  const colA = scoreColor(dA.total);
+  const colB = scoreColor(dB.total);
+
+  let html = `
+  <div class="compare-grid">
+    <div class="compare-score-card ${winsA ? 'winner' : ''}">
+      <div class="compare-repo">${dA.repo.full_name}</div>
+      <div class="compare-num ${winsA ? '' : 'loser'}">${dA.total}</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px;">/100</div>
+      <div><span class="compare-badge ${winsA ? 'win' : ''}">${winsA ? '✓ Higher Score' : 'Lower Score'}</span></div>
+    </div>
+    <div class="compare-score-card ${!winsA ? 'winner' : ''}">
+      <div class="compare-repo">${dB.repo.full_name}</div>
+      <div class="compare-num ${!winsA ? '' : 'loser'}">${dB.total}</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px;">/100</div>
+      <div><span class="compare-badge ${!winsA ? 'win' : ''}">${!winsA ? '✓ Higher Score' : 'Lower Score'}</span></div>
+    </div>
+  </div>
+  <div class="chart-card">
+    <div class="sec-head">Score by Dimension</div>
+    <div class="chart-wrap"><canvas id="cmpBar"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <div class="sec-head">Detailed Comparison</div>
+    <table class="cmp-table">
+      <tr>
+        <th>Metric</th>
+        <th>${dA.repo.full_name}</th>
+        <th>${dB.repo.full_name}</th>
+        <th>Better</th>
+      </tr>`;
+
+  const rows = [
+    ['Total Score', dA.total, dB.total, null, true],
+    ['Stars', dA.repo.stargazers_count, dB.repo.stargazers_count, null, true],
+    ['Forks', dA.repo.forks_count, dB.repo.forks_count, null, true],
+    ['Open Issues', dA.repo.open_issues_count, dB.repo.open_issues_count, null, false],
+    ['Days Since Push', Math.round(daysSince(dA.repo.pushed_at)), Math.round(daysSince(dB.repo.pushed_at)), null, false],
+    ['Releases', dA.releases.length, dB.releases.length, null, true],
+    ['Has License', dA.repo.license ? 'Yes' : 'No', dB.repo.license ? 'Yes' : 'No', null, true],
+    ['Has Wiki', dA.repo.has_wiki ? 'Yes' : 'No', dB.repo.has_wiki ? 'Yes' : 'No', null, true],
+  ];
+
+  rows.forEach(([label, va, vb, _, higherBetter]) => {
+    const numA = typeof va === 'number' ? va : (va === 'Yes' ? 1 : 0);
+    const numB = typeof vb === 'number' ? vb : (vb === 'Yes' ? 1 : 0);
+    const aWins = higherBetter ? numA >= numB : numA <= numB;
+    html += `<tr>
+      <td style="color:var(--muted)">${label}</td>
+      <td class="${aWins ? 'cmp-win' : 'cmp-lose'}">${typeof va === 'number' ? va.toLocaleString() : va}</td>
+      <td class="${!aWins ? 'cmp-win' : 'cmp-lose'}">${typeof vb === 'number' ? vb.toLocaleString() : vb}</td>
+      <td style="color:var(--cyan);font-size:11px;">${aWins ? dA.repo.name : dB.repo.name}</td>
+    </tr>`;
+  });
+
+  html += `</table></div>`;
+  document.getElementById('compare-results').innerHTML = html;
+
+  // bar chart
+  const dimLabels = ['Maintainability', 'Reliability', 'Community', 'Documentation'];
+  const dimsA = Object.values(dA.dims).map(d => d.score);
+  const dimsB = Object.values(dB.dims).map(d => d.score);
+  const maxes = Object.values(dA.dims).map(d => d.max);
+
+  if (cmpBarInst) cmpBarInst.destroy();
+  const ctx = document.getElementById('cmpBar').getContext('2d');
+  cmpBarInst = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: dimLabels,
+      datasets: [
+        { label: dA.repo.name, data: dimsA, backgroundColor: colA, borderRadius: 3 },
+        { label: dB.repo.name, data: dimsB, backgroundColor: colB, borderRadius: 3 },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#6B8FA8' } },
+        x: { grid: { display: false }, ticks: { color: '#6B8FA8' } }
+      },
+      plugins: { legend: { labels: { color: '#6B8FA8', font: { size: 12 } } } }
+    }
+  });
+}
+
+// ── REPORT VIEW ────────────────────────────────────────────────────
+function buildReportView() {
+  if (!lastResult) return;
+  const { repo, total, dims } = lastResult;
+  const recs = genRecommendations(lastResult);
+  const now = new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'long', year:'numeric' });
+
+  document.getElementById('report-content').innerHTML = `
+  <div class="report-meta">
+    <div class="report-field">
+      <label>Student Name</label>
+      <input type="text" id="r-name" value="Divya Umai Raja">
+    </div>
+    <div class="report-field">
+      <label>Register Number</label>
+      <input type="text" id="r-reg" value="24BDS1068">
+    </div>
+    <div class="report-field">
+      <label>Course</label>
+      <input type="text" id="r-course" value="BCSE301L — Software Engineering">
+    </div>
+    <div class="report-field">
+      <label>Date</label>
+      <input type="text" id="r-date" value="${now}">
+    </div>
+    <div class="report-field full">
+      <label>Additional Notes</label>
+      <textarea id="r-notes">This report was generated using QualiTrack, an educational software quality assessment tool aligned with ISO/IEC 25010 quality characteristics.</textarea>
+    </div>
+  </div>
+  <div style="display:flex;gap:10px;margin-bottom:28px;" class="no-print">
+    <button class="btn" onclick="printReport()">Print / Save as PDF</button>
+  </div>
+
+  <div id="printable-report">
+    <div style="padding:20px 0 10px;border-bottom:2px solid var(--cyan);margin-bottom:24px;">
+      <div style="font-family:var(--font-data);font-size:10px;color:var(--muted);margin-bottom:6px;">SOFTWARE QUALITY ASSESSMENT REPORT</div>
+      <div style="font-family:var(--font-data);font-size:22px;font-weight:700;color:var(--text);">${repo.full_name}</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px;">${repo.html_url}</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin-bottom:24px;">
+      <div style="background:var(--surface);border:1px solid var(--border);padding:14px 16px;">
+        <div style="font-size:10px;color:var(--muted);margin-bottom:6px;">FINAL SCORE</div>
+        <div style="font-family:var(--font-data);font-size:28px;font-weight:700;color:${scoreColor(total)}">${total}/100</div>
+        <div style="font-size:11px;color:var(--muted);">${scoreGrade(total)}</div>
+      </div>
+      ${Object.values(dims).map(d => `
+      <div style="background:var(--surface);border:1px solid var(--border);padding:14px 16px;">
+        <div style="font-size:10px;color:var(--muted);margin-bottom:6px;">${d.label.toUpperCase()}</div>
+        <div style="font-family:var(--font-data);font-size:28px;font-weight:700;color:${d.color}">${d.score}/${d.max}</div>
+        <div style="font-size:11px;color:var(--muted);">${Math.round(d.score/d.max*100)}%</div>
+      </div>`).join('')}
+    </div>
+
+    <div style="font-family:var(--font-data);font-size:11px;color:var(--muted);letter-spacing:1px;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border);">RECOMMENDATIONS (${recs.length})</div>
+    ${recs.map(r => `
+    <div style="border-left:2px solid ${r.priority==='high'?'var(--orange)':r.priority==='medium'?'var(--yellow)':'var(--green)'};padding:12px 16px;margin-bottom:10px;background:var(--surface);">
+      <div style="font-size:13px;font-weight:600;margin-bottom:4px;">${r.title}</div>
+      <div style="font-size:12px;color:var(--muted);line-height:1.6;">${r.desc}</div>
+      <div style="font-family:var(--font-data);font-size:10px;color:var(--dim);margin-top:6px;">${r.trigger}</div>
+    </div>`).join('')}
+
+    <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--border);font-size:11px;color:var(--dim);line-height:1.7;">
+      <strong style="color:var(--muted);">Limitations:</strong> This report uses observable GitHub API metrics only. Test coverage %, static analysis results (cyclomatic complexity, code smells), and security vulnerability counts are not available through the public API and are excluded from scoring. This is an educational assessment tool, not an official ISO/IEC 25010 certification.
+    </div>
+    <div style="margin-top:10px;font-size:11px;color:var(--dim);">
+      Generated by QualiTrack · <span id="r-name-foot"></span> · <span id="r-reg-foot"></span> · ${now}
+    </div>
+  </div>`;
+}
+
+function printReport() {
+  const name = document.getElementById('r-name')?.value || '';
+  const reg = document.getElementById('r-reg')?.value || '';
+  const nf = document.getElementById('r-name-foot');
+  const rf = document.getElementById('r-reg-foot');
+  if (nf) nf.textContent = name;
+  if (rf) rf.textContent = reg;
+  setTimeout(() => window.print(), 100);
+}
+</script>
+</body>
+</html>
